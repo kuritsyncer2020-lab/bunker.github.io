@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Бункер – колода карт</title>
+    <title>Бункер – колода карт + история</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -63,6 +63,17 @@
             box-shadow: 0 4px 15px #a29bfe55;
         }
         .btn-secret-print:hover { background: #b8b0ff; transform: scale(1.02); }
+        .btn-danger {
+            background: #e74c3c;
+            color: #fff;
+            border: none;
+            padding: 2px 10px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .btn-danger:hover { background: #c0392b; }
+
         .create-panel {
             background: #1a1a2e;
             border-radius: 12px;
@@ -92,6 +103,7 @@
         .create-panel input[type="number"]:focus {
             box-shadow: 0 0 0 2px #f5c84255;
         }
+
         .controls {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
@@ -137,7 +149,7 @@
             margin-top: 8px;
             flex-wrap: wrap;
         }
-        .control-group input {
+        .control-group input, .control-group textarea {
             flex: 1;
             padding: 8px;
             border: none;
@@ -148,7 +160,12 @@
             font-family: inherit;
             min-width: 100px;
         }
-        .control-group input::placeholder { color: #888; }
+        .control-group input::placeholder, .control-group textarea::placeholder { color: #888; }
+        .control-group textarea {
+            min-height: 50px;
+            resize: vertical;
+            flex-basis: 100%;
+        }
         .control-group .add-btn {
             background: #2ecc71;
             border: none;
@@ -160,16 +177,7 @@
             transition: 0.2s;
         }
         .control-group .add-btn:hover { background: #27ae60; }
-        .btn-danger {
-            background: #e74c3c;
-            color: #fff;
-            border: none;
-            padding: 2px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.8rem;
-        }
-        .btn-danger:hover { background: #c0392b; }
+
         .secret-control-group .secret-item {
             display: flex;
             flex-direction: column;
@@ -196,6 +204,59 @@
             justify-content: flex-end;
             margin-top: 4px;
         }
+
+        /* История */
+        .history-section {
+            background: #1a1a2e;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid #2a2a44;
+        }
+        .history-section h2 {
+            color: #f5c842;
+            margin-bottom: 10px;
+        }
+        .history-list {
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .history-item {
+            background: #252540;
+            padding: 12px 15px;
+            margin: 8px 0;
+            border-radius: 8px;
+            border-left: 4px solid #f5c842;
+        }
+        .history-item .history-title {
+            font-weight: bold;
+            color: #f5c842;
+        }
+        .history-item .history-text {
+            color: #ccc;
+            margin-top: 4px;
+            white-space: pre-wrap;
+        }
+        .history-item .history-actions {
+            margin-top: 8px;
+            display: flex;
+            gap: 8px;
+        }
+        .history-item .history-actions button {
+            background: #2d2d4a;
+            border: none;
+            color: #e0e0e0;
+            padding: 4px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+        .history-item .history-actions button:hover { background: #3d3d5e; }
+        .history-item .history-actions .del-history { background: #e74c3c; }
+        .history-item .history-actions .del-history:hover { background: #c0392b; }
+        .history-item .history-actions .print-history { background: #74b9ff; color: #1a1a2e; }
+        .history-item .history-actions .print-history:hover { background: #8fcbff; }
+
         .footer {
             text-align: center;
             margin-top: 40px;
@@ -211,7 +272,7 @@
         }
         @media print {
             .controls, .create-panel, .btn-primary, .btn-secondary, .btn-print, .btn-success,
-            .btn-secret-print, .footer { display: none !important; }
+            .btn-secret-print, .footer, .history-actions { display: none !important; }
         }
     </style>
 </head>
@@ -228,6 +289,17 @@
         <button class="btn-secondary" id="resetBtn">♻️ Сбросить</button>
     </div>
 
+    <!-- ИСТОРИЯ КАТАСТРОФЫ -->
+    <div class="history-section">
+        <h2>📜 История катастрофы</h2>
+        <div class="add-area" style="display:flex; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
+            <input type="text" id="historyTitleInput" placeholder="Название истории (например: Война 2045)" style="flex:1; padding:10px; border:none; border-radius:6px; background:#2d2d4a; color:#fff; outline:none; min-width:150px;">
+            <textarea id="historyTextInput" placeholder="Текст истории..." style="flex:2; padding:10px; border:none; border-radius:6px; background:#2d2d4a; color:#fff; outline:none; resize:vertical; min-height:80px;"></textarea>
+            <button class="btn-success" id="addHistoryBtn" style="margin:0; padding:10px 20px;">+ Добавить историю</button>
+        </div>
+        <div id="historyList" class="history-list"></div>
+    </div>
+
     <h2 style="color: #f5c842; margin: 20px 0 10px; font-weight: 300;">Редактировать списки</h2>
     <div class="controls" id="controlsContainer"></div>
 
@@ -239,31 +311,70 @@
 
 <script>
     (function() {
-        // ===== ДАННЫЕ =====
+        // ===== ДАННЫЕ (все ваши карточки из PDF =====
         const DEFAULT_DATA = {
             gender: ['Мужской', 'Женский'],
-            health: ['Отличное', 'Среднее', 'Слабое', 'Хронические болезни', 'Крепкое', 'Ранен'],
-            age: [20, 22, 25, 28, 30, 33, 35, 38, 40, 42, 45, 48, 50, 55, 60],
-            jobs: ['Инженер', 'Врач', 'Учитель', 'Строитель', 'Повар', 'Водитель', 'Программист', 'Фермер', 'Военный', 'Пожарный', 'Медсестра'],
-            hobbies: ['Чтение', 'Рыбалка', 'Охота', 'Гитара', 'Шахматы', 'Бег', 'Фотография', 'Рисование', 'Садоводство', 'Кулинария'],
-            items: ['Аптечка', 'Фонарик', 'Нож', 'Верёвка', 'Консервы', 'Компас', 'Рация', 'Топор', 'Спички', 'Палатка'],
-            facts: ['умеет долго стоять на одной ноге', 'за 5 минут съедает суп вилкой', 'жонглирует петардами',
-                    'знаком через 30 рукопожатий с Клинтоном', 'может отличить 50 оттенков серого',
-                    'никогда не проигрывает в камень-ножницы-бумага', 'умеет говорить голосом Дарта Вейдера',
-                    'знает наизусть все серии "Друзей"', 'может завязать шнурки одной рукой',
-                    'всегда знает, который час без часов'],
-            orientations: ['Гетеросексуал', 'Гомосексуал', 'Бисексуал', 'Асексуал', 'Чайлд-фри', 'Бесплодие',
-                          'Любит мальчиков', 'Любит девочек', 'Полиамор', 'Не определился'],
-            skills: ['умеет дышать под водой, но с аквалангом', 'умеет читать книгу задом наперед, но ничего не понимает',
-                    'записывает треки, но всегда с выключенным микрофоном', 'может заварить чай без чайника, используя утюг',
-                    'умеет свистеть, но только в помещении', 'всегда находит потерянные вещи, но через неделю',
-                    'может проспать 24 часа, но потом не спит двое суток', 'умеет разговаривать с животными, но они его не слушают'],
+            health: [
+                'Отличное', 'Среднее', 'Слабое', 'Хронические болезни', 'Крепкое', 'Ранен',
+                'Однорукий', 'Слепой', 'Деменция', 'Инвалид', 'Бронхит', 'Альцгеймер',
+                'Астма', 'Полностью здоров', 'Колясочник', 'Одного глаза нет', 'Глухонемой', 'Близорукий'
+            ],
+            age: [20, 22, 25, 28, 30, 33, 35, 38, 40, 42, 45, 48, 50, 55, 60, 67, 77, 80, 89, 46],
+            jobs: [
+                'Инженер', 'Врач', 'Учитель', 'Строитель', 'Повар', 'Водитель', 'Программист',
+                'Фермер', 'Военный', 'Пожарный', 'Медсестра', 'Стриптезер', 'Клоун', 'Акробат',
+                'Репортер', 'Переводчик', 'Блогер', 'Химик', 'Журналист'
+            ],
+            hobbies: [
+                'Чтение', 'Рыбалка', 'Охота', 'Гитара', 'Шахматы', 'Бег', 'Фотография',
+                'Рисование', 'Садоводство', 'Кулинария', 'Паркур', 'Дартс', 'Плавание',
+                'Стрельбы из лука', 'Бильярд'
+            ],
+            items: [
+                'Аптечка', 'Фонарик', 'Нож', 'Верёвка', 'Консервы', 'Компас', 'Рация',
+                'Топор', 'Спички', 'Палатка', 'Настольные игры', 'Кальян', 'Бесконечная лампочка',
+                'Зажигалка', 'Набор для выживания', 'Набор салфеток', 'Генератор', 'Блок сигарет'
+            ],
+            facts: [
+                'умеет долго стоять на одной ноге', 'за 5 минут съедает суп вилкой',
+                'жонглирует петардами', 'знаком через 30 рукопожатий с Клинтоном',
+                'может отличить 50 оттенков серого', 'никогда не проигрывает в камень-ножницы-бумага',
+                'умеет говорить голосом Дарта Вейдера', 'знает наизусть все серии "Друзей"',
+                'может завязать шнурки одной рукой', 'всегда знает, который час без часов',
+                'Живет с мамой', 'Разжигает костер голыми руками', 'Знает все языки мира',
+                'Разбирается в электронике', 'Не знает какой сейчас год', 'Может построить что угодно'
+            ],
+            orientations: [
+                'Гетеросексуал', 'Гомосексуал', 'Бисексуал', 'Асексуал', 'Чайлд-фри',
+                'Бесплодие', 'Любит мальчиков', 'Любит девочек', 'Полиамор', 'Не определился',
+                'Любит детей'
+            ],
+            skills: [
+                'умеет дышать под водой, но с аквалангом',
+                'умеет читать книгу задом наперед, но ничего не понимает',
+                'записывает треки, но всегда с выключенным микрофоном',
+                'может заварить чай без чайника, используя утюг',
+                'умеет свистеть, но только в помещении',
+                'всегда находит потерянные вещи, но через неделю',
+                'может проспать 24 часа, но потом не спит двое суток',
+                'умеет разговаривать с животными, но они его не слушают',
+                'пробовал все виды лекарственных растений, но теперь его постоянно тошнит',
+                'Не пил ни капли алкоголя в своей жизни, но умеет гнать самогон',
+                'может свзяать любую одежду, но сильно боится иголки',
+                'Был во всех горячих точках, но правда лишь в компьютерной игре',
+                'знает все инструкции к технике, только не одну не может пересказать',
+                'забирался на Эльбрус, но его несли все время на спине',
+                'выйграл соревнования по борьбе, но среди детей инвалидов',
+                'Знает язык жестов, но он неправильный'
+            ],
             education: [
                 'Закончил ПТУ с отличием', 'Не закончил 9 классов', 'Инженер-электроник',
                 'Химик-лаборант', 'Высшее образование (МГУ)', 'Среднее специальное',
                 'Самоучка', 'Доктор наук', 'Кандидат наук', 'Техник-программист',
                 'Строитель-монтажник', 'Водитель-механик', 'Медицинская сестра',
-                'Военное училище', 'Курсы повышения квалификации'
+                'Военное училище', 'Курсы повышения квалификации', 'Студент уже 10 лет',
+                'Доктор технических наук', 'Лаборант', 'Высшее образование (РАНГХИС)',
+                'Аспирант', 'Магистр'
             ],
             phobias: [
                 'Арахнофобия', 'Клаустрофобия', 'Боязнь высоты', 'Акрофобия',
@@ -271,6 +382,16 @@
                 'Кинофобия', 'Аэрофобия', 'Танатофобия', 'Астрапофобия',
                 'Мурофобия', 'Зоофобия', 'Аутофобия', 'Дентофобия',
                 'Гемофобия', 'Трипофобия', 'Номофобия', 'Ксенофобия'
+            ],
+            // НОВАЯ КАТЕГОРИЯ: СТАЖ РАБОТЫ
+            experience: [
+                '1 месяц', '2 месяца', '3 месяца', '4 месяца', '5 месяцев', '6 месяцев',
+                '7 месяцев', '8 месяцев', '9 месяцев', '10 месяцев', '11 месяцев',
+                '1 год', '2 года', '3 года', '4 года', '5 лет', '6 лет', '7 лет',
+                '8 лет', '9 лет', '10 лет', '11 лет', '12 лет', '13 лет', '14 лет',
+                '15 лет', '16 лет', '17 лет', '18 лет', '19 лет', '20 лет',
+                '21 год', '22 года', '23 года', '24 года', '25 лет', '26 лет',
+                '27 лет', '28 лет', '29 лет', '30 лет'
             ]
         };
 
@@ -279,10 +400,19 @@
             { title: 'Медицинский гений', description: 'Если у вас есть аптечка, вы можете вылечить одного раненого.', effect: 'Лечение' },
             { title: 'Параноик', description: 'Вы не доверяете никому. Все голоса против вас считаются двойными.', effect: 'Двойной голос против' },
             { title: 'Лидер', description: 'Ваш голос при решении о выгоне считается за два.', effect: 'Двойной голос за' },
-            { title: 'Шпион', description: 'Вы знаете одну тайну о другом игроке (выберите сами).', effect: 'Информация' }
+            { title: 'Шпион', description: 'Вы знаете одну тайну о другом игроке (выберите сами).', effect: 'Информация' },
+            { title: 'Дорогое здоровье', description: 'Можете поменяться с любым игроком параметром здоровья.', effect: 'Жизнь' },
+            { title: 'Ничего не боюсь', description: 'Можете поменяться с любым игроком параметром фобии.', effect: 'Больше не страшно' },
+            { title: 'Молчать!!!', description: 'Выберете игрока, который будет молчать во время голосования.', effect: 'Тише воды, ниже травы' },
+            { title: 'Враг бункера', description: 'Ваша задача любым способом попасть в бункер. Если вы окажетесь в бункере — вы ВЫЙГРАЛИ, все остальные проиграли.', effect: 'Злодей' },
+            { title: 'Лучший друг', description: 'Игрок справа является вашим другом. Вам необходимо попасть в бункер с этим игроком. Если вы без него попали в бункер — ПРОИГРАЛИ.', effect: 'Дружище' },
+            { title: 'Враг', description: 'Слева от вас сидит ваш злейший враг. Вы должны от него избавиться до последнего раунда. Если в последнем раунде вы оба окажетесь в бункере — ПРОИГРАЛИ.', effect: 'Избавиться любой ценой' },
+            { title: 'Выживало', description: 'Специальная карточка. Если вы не попадете в бункер, то вы откроете свой бункер и будете воевать против основного.', effect: 'Выжить любой ценой' },
+            { title: 'Смена', description: 'С помощью этой карточки вы можете поменять у всех игроков один из параметров (который решите).', effect: 'Надеюсь повезет' }
         ];
 
         const STORAGE_KEY = 'bunkerDeckData';
+        const HISTORY_KEY = 'bunkerHistories';
 
         function getDefault() {
             return {
@@ -319,6 +449,23 @@
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         }
 
+        // ===== ИСТОРИИ =====
+        function loadHistories() {
+            const stored = localStorage.getItem(HISTORY_KEY);
+            if (stored) {
+                try { return JSON.parse(stored); }
+                catch(e) { return []; }
+            }
+            return [];
+        }
+
+        function saveHistories(histories) {
+            localStorage.setItem(HISTORY_KEY, JSON.stringify(histories));
+        }
+
+        let histories = loadHistories();
+
+        // ===== ВСПОМОГАТЕЛЬНЫЕ =====
         function getRandom(arr) {
             return arr[Math.floor(Math.random() * arr.length)];
         }
@@ -344,21 +491,12 @@
             }
         }
 
-        function generateExperience() {
-            const months = Math.floor(Math.random() * 360) + 1;
-            if (months < 12) {
-                return months + ' ' + (months === 1 ? 'месяц' : months >= 2 && months <= 4 ? 'месяца' : 'месяцев');
-            } else {
-                const years = Math.floor(months / 12);
-                return years + ' ' + (years === 1 ? 'год' : years >= 2 && years <= 4 ? 'года' : 'лет');
-            }
-        }
-
-        // КАТЕГОРИИ ДЛЯ КОЛОДЫ
+        // КАТЕГОРИИ ДЛЯ КОЛОДЫ (добавлен стаж)
         const CATEGORIES = [
             { key: 'gender', label: 'Пол', icon: '⚤', cls: 'gender' },
             { key: 'health', label: 'Здоровье', icon: '❤️', cls: 'health' },
             { key: 'age', label: 'Возраст', icon: '🎂', cls: 'age' },
+            { key: 'experience', label: 'Стаж работы', icon: '⏳', cls: 'experience' },
             { key: 'jobs', label: 'Работа', icon: '💼', cls: 'job' },
             { key: 'hobbies', label: 'Хобби', icon: '🎨', cls: 'hobby' },
             { key: 'items', label: 'Предмет', icon: '🎒', cls: 'items' },
@@ -369,7 +507,6 @@
             { key: 'phobias', label: 'Фобия', icon: '😱', cls: 'phobia' }
         ];
 
-        // ГЕНЕРАЦИЯ КОЛОДЫ
         let deck = {};
 
         function generateDeck(count) {
@@ -380,7 +517,7 @@
             });
         }
 
-        // ПЕЧАТЬ КОЛОДЫ
+        // ===== ПЕЧАТЬ КОЛОДЫ =====
         function printDeck() {
             const count = parseInt(document.getElementById('cardCountInput').value) || 6;
             generateDeck(count);
@@ -394,7 +531,7 @@
                 body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #fff; padding: 20px; }
                 .deck-container { max-width: 1200px; margin: 0 auto; }
                 h1 { text-align: center; font-size: 2.5rem; color: #1a1a2e; margin-bottom: 30px; border-bottom: 3px solid #f5c842; padding-bottom: 10px; }
-                .category-section { margin: 30px 0; }
+                .category-section { margin: 30px 0; page-break-inside: avoid; }
                 .category-title { font-size: 1.8rem; font-weight: bold; color: #2d2d4a; margin-bottom: 15px; border-left: 4px solid #f5c842; padding-left: 15px; }
                 .cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; }
                 .card {
@@ -416,6 +553,7 @@
                 .card .value { font-size: 1.4rem; font-weight: 700; color: #000; margin-top: 4px; }
                 .card .value.health { color: #c0392b; }
                 .card .value.age { color: #2980b9; }
+                .card .value.experience { color: #b7950b; }
                 .card .value.job { color: #d4a017; }
                 .card .value.hobby { color: #6c5b7b; }
                 .card .value.items { color: #16a085; }
@@ -483,10 +621,10 @@
             }
         }
 
-        // ПЕЧАТЬ СЕКРЕТОВ (отдельно)
+        // ===== ПЕЧАТЬ СЕКРЕТОВ =====
         function printSecrets() {
             if (!data.secrets || data.secrets.length === 0) {
-                alert('Список секретов пуст. Добавьте секреты в настройках.');
+                alert('Список секретов пуст.');
                 return;
             }
             let html = `
@@ -545,6 +683,37 @@
             }
         }
 
+        // ===== ПЕЧАТЬ ИСТОРИИ =====
+        function printHistoryItem(title, text) {
+            const html = `
+            <!DOCTYPE html>
+            <html>
+            <head><meta charset="UTF-8"><title>${title}</title>
+            <style>
+                body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #fff; padding: 40px; max-width: 800px; margin: 0 auto; line-height: 1.7; }
+                h1 { color: #1a1a2e; border-bottom: 2px solid #f5c842; }
+                .history-text { font-size: 1.05rem; white-space: pre-wrap; margin-top: 20px; }
+                @media print { body { padding: 0.5in; } }
+            </style>
+            </head>
+            <body>
+                <h1>📜 ${title}</h1>
+                <div class="history-text">${text}</div>
+                <script>
+                    window.onload = function() { window.print(); }
+                <\/script>
+            </body>
+            </html>
+            `;
+            const win = window.open('', '_blank');
+            if (win) {
+                win.document.write(html);
+                win.document.close();
+            } else {
+                alert('Разрешите всплывающие окна для печати.');
+            }
+        }
+
         // ===== ОТРИСОВКА УПРАВЛЕНИЯ =====
         function renderControls() {
             const container = document.getElementById('controlsContainer');
@@ -554,6 +723,7 @@
                 { key: 'gender', label: 'Пол', placeholder: 'Напр. Мужской' },
                 { key: 'health', label: 'Здоровье', placeholder: 'Напр. Отличное' },
                 { key: 'age', label: 'Возраст', placeholder: 'Напр. 22' },
+                { key: 'experience', label: 'Стаж работы', placeholder: 'Напр. 5 лет' },
                 { key: 'jobs', label: 'Работа', placeholder: 'Напр. Плотник' },
                 { key: 'hobbies', label: 'Хобби', placeholder: 'Напр. Плавание' },
                 { key: 'items', label: 'Предметы', placeholder: 'Напр. Палатка' },
@@ -625,6 +795,7 @@
             });
 
             renderSecretControls();
+            renderHistories();
         }
 
         function renderSecretControls() {
@@ -711,6 +882,46 @@
             container.appendChild(group);
         }
 
+        // ===== ИСТОРИИ =====
+        function renderHistories() {
+            const container = document.getElementById('historyList');
+            container.innerHTML = '';
+            if (histories.length === 0) {
+                container.innerHTML = '<p style="color:#888; padding:10px;">Нет сохранённых историй. Добавьте историю выше.</p>';
+                return;
+            }
+            histories.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'history-item';
+                div.innerHTML = `
+                    <div class="history-title">${item.title || 'Без названия'}</div>
+                    <div class="history-text">${item.text || ''}</div>
+                    <div class="history-actions">
+                        <button class="print-history" data-index="${index}">🖨️ Печать</button>
+                        <button class="del-history" data-index="${index}">🗑️ Удалить</button>
+                    </div>
+                `;
+                container.appendChild(div);
+
+                // Печать истории
+                div.querySelector('.print-history').addEventListener('click', function() {
+                    const idx = parseInt(this.dataset.index);
+                    const item = histories[idx];
+                    if (item) printHistoryItem(item.title, item.text);
+                });
+
+                // Удаление истории
+                div.querySelector('.del-history').addEventListener('click', function() {
+                    const idx = parseInt(this.dataset.index);
+                    if (confirm('Удалить историю?')) {
+                        histories.splice(idx, 1);
+                        saveHistories(histories);
+                        renderHistories();
+                    }
+                });
+            });
+        }
+
         // ===== СОБЫТИЯ =====
         document.getElementById('printDeckBtn').addEventListener('click', printDeck);
         document.getElementById('printSecretsBtn').addEventListener('click', printSecrets);
@@ -722,7 +933,7 @@
         });
 
         document.getElementById('resetBtn').addEventListener('click', function() {
-            if (confirm('Сбросить все списки к стандартным?')) {
+            if (confirm('Сбросить все списки к стандартным? Все истории останутся.')) {
                 localStorage.removeItem(STORAGE_KEY);
                 data = getDefault();
                 saveData();
@@ -730,9 +941,20 @@
             }
         });
 
+        // Добавление истории
+        document.getElementById('addHistoryBtn').addEventListener('click', function() {
+            const title = document.getElementById('historyTitleInput').value.trim() || 'История ' + (histories.length + 1);
+            const text = document.getElementById('historyTextInput').value.trim();
+            if (!text) { alert('Введите текст истории'); return; }
+            histories.push({ title, text });
+            saveHistories(histories);
+            document.getElementById('historyTitleInput').value = '';
+            document.getElementById('historyTextInput').value = '';
+            renderHistories();
+        });
+
         // ===== ЗАПУСК =====
         renderControls();
-        // Сразу генерируем колоду
         generateDeck(6);
     })();
 </script>
