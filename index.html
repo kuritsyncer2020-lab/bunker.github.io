@@ -272,6 +272,7 @@
         .player-card .value.skill { color: #fd79a8; font-style: italic; }
         .player-card .value.experience { color: #ffeaa7; }
         .player-card .value.education { color: #81ecec; }
+        .player-card .value.phobia { color: #dda0dd; font-style: italic; } /* новый цвет для фобий */
         .player-card .value.gender.male { color: #74b9ff; }
         .player-card .value.gender.female { color: #fd79a8; }
         .player-card .print-buttons {
@@ -562,6 +563,7 @@
             .player-card .value.skill { color: #c0392b !important; }
             .player-card .value.experience { color: #b7950b !important; }
             .player-card .value.education { color: #1abc9c !important; }
+            .player-card .value.phobia { color: #8e44ad !important; }
             .player-card .value.gender.male { color: #2980b9 !important; }
             .player-card .value.gender.female { color: #c0392b !important; }
             .player-card .avatar { border-color: #333 !important; }
@@ -668,6 +670,13 @@
                 'Военное училище',
                 'Курсы повышения квалификации'
             ],
+            phobias: [
+                'Арахнофобия', 'Клаустрофобия', 'Боязнь высоты', 'Акрофобия',
+                'Социофобия', 'Агорафобия', 'Никтофобия', 'Герпетофобия',
+                'Кинофобия', 'Аэрофобия', 'Танатофобия', 'Астрапофобия',
+                'Мурофобия', 'Зоофобия', 'Аутофобия', 'Дентофобия',
+                'Гемофобия', 'Трипофобия', 'Номофобия', 'Ксенофобия'
+            ],
             avatars: [],
             bunkerPhotos: []
         };
@@ -726,6 +735,9 @@
                     }
                     if (!parsed.education || !Array.isArray(parsed.education) || parsed.education.length === 0) {
                         parsed.education = [...DEFAULT_DATA.education];
+                    }
+                    if (!parsed.phobias || !Array.isArray(parsed.phobias) || parsed.phobias.length === 0) {
+                        parsed.phobias = [...DEFAULT_DATA.phobias];
                     }
                     return parsed;
                 } catch (e) {
@@ -805,9 +817,8 @@
         }
 
         // Генерация одного игрока (без имени и секрета)
-        function generatePlayer(usedHealth, usedAge, usedJob, usedHobby, usedItem, usedFact, usedOrientation, usedSkill, usedEducation, index) {
+        function generatePlayer(usedHealth, usedAge, usedJob, usedHobby, usedItem, usedFact, usedOrientation, usedSkill, usedEducation, usedPhobia, index) {
             let gender = getRandom(data.gender);
-            // Не уникализируем пол, т.к. всего два значения
 
             let health = getRandom(data.health);
             while (usedHealth.includes(health)) {
@@ -845,6 +856,10 @@
             while (usedEducation.includes(education)) {
                 education = getRandom(data.education);
             }
+            let phobia = getRandom(data.phobias);
+            while (usedPhobia.includes(phobia)) {
+                phobia = getRandom(data.phobias);
+            }
 
             const avatar = getAvatarUrl();
             const experience = generateExperience();
@@ -863,16 +878,17 @@
                 skill: skill,
                 experience: experience,
                 education: education,
+                phobia: phobia,
                 avatar: avatar
             };
         }
 
         // Генерация N игроков (без секретов)
         function generatePlayers(n) {
-            const usedHealth = [], usedAge = [], usedJob = [], usedHobby = [], usedItem = [], usedFact = [], usedOrientation = [], usedSkill = [], usedEducation = [];
+            const usedHealth = [], usedAge = [], usedJob = [], usedHobby = [], usedItem = [], usedFact = [], usedOrientation = [], usedSkill = [], usedEducation = [], usedPhobia = [];
             const newPlayers = [];
             for (let i = 0; i < n; i++) {
-                const p = generatePlayer(usedHealth, usedAge, usedJob, usedHobby, usedItem, usedFact, usedOrientation, usedSkill, usedEducation, i);
+                const p = generatePlayer(usedHealth, usedAge, usedJob, usedHobby, usedItem, usedFact, usedOrientation, usedSkill, usedEducation, usedPhobia, i);
                 usedHealth.push(p.health);
                 usedAge.push(p.age);
                 usedJob.push(p.job);
@@ -882,6 +898,7 @@
                 usedOrientation.push(p.orientation);
                 usedSkill.push(p.skill);
                 usedEducation.push(p.education);
+                usedPhobia.push(p.phobia);
                 newPlayers.push(p);
             }
             return newPlayers;
@@ -941,7 +958,8 @@
                     { key: 'orientation', label: '❤️ Ориентация', value: player.orientation || '—', cls: 'orientation' },
                     { key: 'skill', label: '⚡ Спец. навык', value: player.skill || '—', cls: 'skill' },
                     { key: 'experience', label: '⏳ Стаж работы', value: player.experience || '—', cls: 'experience' },
-                    { key: 'education', label: '🎓 Образование', value: player.education || '—', cls: 'education' }
+                    { key: 'education', label: '🎓 Образование', value: player.education || '—', cls: 'education' },
+                    { key: 'phobia', label: '😱 Фобия', value: player.phobia || '—', cls: 'phobia' }
                 ];
 
                 fields.forEach(f => {
@@ -990,6 +1008,12 @@
                                 newVal = getRandom(data.education);
                                 attempts++;
                             } while (used.includes(newVal) && attempts < 20);
+                        } else if (f.key === 'phobia') {
+                            let attempts = 0;
+                            do {
+                                newVal = getRandom(data.phobias);
+                                attempts++;
+                            } while (used.includes(newVal) && attempts < 20);
                         } else {
                             const listKey = f.key === 'health' ? 'health' : f.key + 's';
                             const arr = data[listKey] || [];
@@ -1010,7 +1034,7 @@
                 // Кнопки печати (без секрета)
                 const printDiv = document.createElement('div');
                 printDiv.className = 'print-buttons';
-                const printKeys = ['gender', 'health', 'age', 'job', 'hobby', 'item', 'fact', 'orientation', 'skill', 'experience', 'education'];
+                const printKeys = ['gender', 'health', 'age', 'job', 'hobby', 'item', 'fact', 'orientation', 'skill', 'experience', 'education', 'phobia'];
                 printKeys.forEach(key => {
                     const btn = document.createElement('button');
                     const labels = {
@@ -1024,7 +1048,8 @@
                         orientation: 'Ориентация',
                         skill: 'Навык',
                         experience: 'Стаж',
-                        education: 'Образование'
+                        education: 'Образование',
+                        phobia: 'Фобия'
                     };
                     btn.textContent = '🖨️ ' + labels[key];
                     btn.addEventListener('click', () => {
@@ -1089,6 +1114,10 @@
                 title = '🎓 Образование';
                 content = player.education || '—';
                 valueClass = 'education';
+            } else if (type === 'phobia') {
+                title = '😱 Фобия';
+                content = player.phobia || '—';
+                valueClass = 'phobia';
             }
 
             const avatarSrc = player.avatar || getAvatarUrl();
@@ -1123,6 +1152,7 @@
                 .print-card .value.skill { color: #c0392b; }
                 .print-card .value.experience { color: #b7950b; }
                 .print-card .value.education { color: #1abc9c; }
+                .print-card .value.phobia { color: #8e44ad; }
                 .print-card .value.gender.male { color: #2980b9; }
                 .print-card .value.gender.female { color: #c0392b; }
                 .print-card .player-name { font-size: 1.2rem; color: #888; margin-top: 10px; }
@@ -1280,7 +1310,7 @@
 
         // ===== УПРАВЛЕНИЕ ИГРОКАМИ =====
         document.getElementById('newGameBtn').addEventListener('click', function() {
-            const p = generatePlayer([], [], [], [], [], [], [], [], [], 0);
+            const p = generatePlayer([], [], [], [], [], [], [], [], [], [], 0);
             players = [p];
             savePlayers(players);
             renderPlayers();
@@ -1292,7 +1322,7 @@
             if (isNaN(count) || count < 2) count = 2;
             if (count > 12) count = 12;
             input.value = count;
-            const minUnique = Math.min(data.health.length, data.jobs.length, data.hobbies.length, data.items.length, data.facts.length, data.orientations.length, data.skills.length, data.education.length);
+            const minUnique = Math.min(data.health.length, data.jobs.length, data.hobbies.length, data.items.length, data.facts.length, data.orientations.length, data.skills.length, data.education.length, data.phobias.length);
             if (minUnique < count) {
                 alert(`Внимание: для полной уникальности не хватает значений. Максимально возможное уникальных комбинаций: ${minUnique}. Но мы сгенерируем игроков с минимальными повторами.`);
             }
@@ -1316,7 +1346,8 @@
                 { key: 'facts', label: 'Интересные факты', placeholder: 'Напр. умеет жонглировать' },
                 { key: 'orientations', label: 'Ориентации', placeholder: 'Напр. Бисексуал' },
                 { key: 'skills', label: 'Специальные навыки', placeholder: 'Напр. умеет дышать под водой' },
-                { key: 'education', label: 'Образование', placeholder: 'Напр. Инженер-электроник' }
+                { key: 'education', label: 'Образование', placeholder: 'Напр. Инженер-электроник' },
+                { key: 'phobias', label: 'Фобии', placeholder: 'Напр. Арахнофобия' }
             ];
 
             categories.forEach(cat => {
@@ -1703,7 +1734,7 @@
         renderHistory();
         renderControls();
         if (players.length === 0) {
-            const p = generatePlayer([], [], [], [], [], [], [], [], [], 0);
+            const p = generatePlayer([], [], [], [], [], [], [], [], [], [], 0);
             players = [p];
             savePlayers(players);
         }
